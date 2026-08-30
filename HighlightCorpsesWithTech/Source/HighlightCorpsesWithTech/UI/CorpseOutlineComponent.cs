@@ -14,7 +14,6 @@ namespace HighlightCorpsesWithTech.UI
     {
         public Corpse corpse;
         public List<TechFinding> findings = new List<TechFinding>();
-        public TechLevel bestTier;
     }
 
     // Scans on an interval and draws the architecture 10.3 outline.
@@ -27,17 +26,28 @@ namespace HighlightCorpsesWithTech.UI
     {
         private const int ScanIntervalTicks = 120;
 
-        // A two-second cycle is a frequency of 0.5.
-        private const float PulseFrequency = 0.5f;
+        // One pulse per second, ordered 2026-08-30 (was a two-second cycle, 0.5).
+        // Pulser.PulseBrightness takes the frequency in cycles per second, so
+        // 1/second is literally 1f.
+        private const float PulseFrequency = 1f;
         private const float PulseAmplitude = 0.6f;
+
+        // The band the pulse swings the outline's alpha through. It starts high and
+        // ends at full: "always bright blue" means the dim half of the old cycle is
+        // gone, and what is left is a pulse you can see rather than one that fades
+        // the corpse out. Was a per-tier floor with a 0.18 band above it.
+        private const float PulseAlphaFloor = 0.65f;
+        private const float PulseAlphaCeiling = 1f;
 
         // How far the silhouette is enlarged to show as a band around the corpse.
         private const float OutlineScale = 1.18f;
         private const float HaloScale = 1.75f;
 
-        // Light blue (architecture 10.3). Brightness varies by tier (10.4); the hue
-        // does not.
-        private static readonly Color OutlineHue = new Color(0.45f, 0.75f, 1f);
+        // Bright blue, and the same for every corpse (architecture 10.3/10.4 as
+        // amended 2026-08-30). Was a paler (0.45, 0.75, 1) with the tech tier driving
+        // brightness; tier no longer touches the outline at all and lives only in the
+        // alert.
+        private static readonly Color OutlineColor = new Color(0.25f, 0.6f, 1f);
 
         private static readonly MaterialPropertyBlock PropertyBlock = new MaterialPropertyBlock();
         private static readonly int ColorPropertyId = Shader.PropertyToID("_Color");
@@ -111,7 +121,6 @@ namespace HighlightCorpsesWithTech.UI
                 {
                     QualifiedCorpse entry = new QualifiedCorpse { corpse = corpse };
                     entry.findings.AddRange(scratchFindings);
-                    entry.bestTier = TechCorpseScanner.HighestTier(entry.findings);
                     qualified.Add(entry);
 
                     // Fires on change, not every scan - RimWorld caps logging at
@@ -173,11 +182,11 @@ namespace HighlightCorpsesWithTech.UI
                     continue;
                 }
 
-                DrawOutline(corpse, qualified[i].bestTier);
+                DrawOutline(corpse);
             }
         }
 
-        private void DrawOutline(Corpse corpse, TechLevel tier)
+        private void DrawOutline(Corpse corpse)
         {
             Mesh mesh;
             Material sourceMaterial;
@@ -212,7 +221,7 @@ namespace HighlightCorpsesWithTech.UI
                 return;
             }
 
-            PropertyBlock.SetColor(ColorPropertyId, ColorFor(tier));
+            PropertyBlock.SetColor(ColorPropertyId, PulsedColor());
 
             Vector3 position = corpse.DrawPos;
             position.y -= Altitudes.AltInc;
@@ -236,41 +245,19 @@ namespace HighlightCorpsesWithTech.UI
             return haloMaterial;
         }
 
-        // Architecture 10.4: the hue is always light blue; the TIER drives brightness.
+        // One colour for every qualifying corpse, pulsing once a second between
+        // PulseAlphaFloor and full (architecture 10.3/10.4, amended 2026-08-30). The
+        // per-tier brightness bands are gone: they were the only reader of
+        // QualifiedCorpse.bestTier, so that field went with them.
         //
-        // The pulse and the tier are multiplying the same channel, so each tier gets a
-        // BAND rather than a single value - a dim Industrial corpse at its brightest
-        // must never outshine an Archotech corpse at its dimmest, or the tier signal
-        // becomes noise. Clamp01 on the pulse is deliberate: PulseBrightness's
-        // amplitude semantics were not verified by reflection, only its signature.
-        private static Color ColorFor(TechLevel tier)
+        // Clamp01 on the pulse is deliberate: PulseBrightness's amplitude semantics
+        // were not verified by reflection, only its signature.
+        private static Color PulsedColor()
         {
-            float bandFloor = BandFloorFor(tier);
-            float bandCeiling = bandFloor + 0.18f;
-
             float pulse = Mathf.Clamp01(Pulser.PulseBrightness(PulseFrequency, PulseAmplitude));
-            float alpha = Mathf.Lerp(bandFloor, bandCeiling, pulse);
+            float alpha = Mathf.Lerp(PulseAlphaFloor, PulseAlphaCeiling, pulse);
 
-            return new Color(OutlineHue.r, OutlineHue.g, OutlineHue.b, alpha);
-        }
-
-        private static float BandFloorFor(TechLevel tier)
-        {
-            switch (tier)
-            {
-                case TechLevel.Archotech:
-                    return 0.76f;
-                case TechLevel.Ultra:
-                    return 0.58f;
-                case TechLevel.Spacer:
-                    return 0.40f;
-                case TechLevel.Industrial:
-                    return 0.22f;
-                default:
-                    // Neolithic, Medieval and Undefined - only visible at all if the
-                    // player turned those tiers on, so they get the dimmest band.
-                    return 0.12f;
-            }
+            return new Color(OutlineColor.r, OutlineColor.g, OutlineColor.b, alpha);
         }
     }
 }

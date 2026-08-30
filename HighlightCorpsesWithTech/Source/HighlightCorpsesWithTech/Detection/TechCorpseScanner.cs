@@ -32,6 +32,13 @@ namespace HighlightCorpsesWithTech.Detection
         // no tech level, and the item is what the player is actually recovering
         // (architecture 3). Test T1.6.
         //
+        // One thing sits outside that rule: a corpse that would otherwise qualify is
+        // dropped when it is one of the player's own and markColonistCorpses is off
+        // (architecture 10.9, which reopens 10.1). Checked AFTER the hediff walk on
+        // purpose - a colonist corpse with nothing implanted in it is not interesting
+        // and must not produce a reject line, and the faction test then costs one
+        // check per qualifying corpse rather than one per corpse on the map.
+        //
         // Nothing here is a hardcoded def list, so any modded implant following the
         // vanilla pattern is detected without a compatibility patch. Test T1.5.
         public static bool TryQualify(Corpse corpse, HcwtSettings settings,
@@ -105,6 +112,13 @@ namespace HighlightCorpsesWithTech.Detection
 
             if (findings.Count > 0)
             {
+                if (!settings.markColonistCorpses && IsPlayersOwnDead(pawn))
+                {
+                    findings.Clear();
+                    rejectReason = "your own dead, and marking them is off";
+                    return false;
+                }
+
                 return true;
             }
 
@@ -112,6 +126,22 @@ namespace HighlightCorpsesWithTech.Detection
             // added parts at all is not interesting and should not be logged.
             rejectReason = sawImplant ? lastRejection : null;
             return false;
+        }
+
+        // "Your own dead" is humanlike and of the player's faction, which is
+        // colonists and your own slaves. Deliberately not Pawn.IsColonist: that is
+        // false for a slave, and a dead slave is still one of yours to bury rather
+        // than a body to point at. Deliberately not faction alone either - a dead
+        // colony animal with an implant is not what the checkbox is about.
+        //
+        // Faction survives death in RimWorld, so this reads the same after the pawn
+        // dies as before.
+        private static bool IsPlayersOwnDead(Pawn pawn)
+        {
+            return pawn.RaceProps != null
+                && pawn.RaceProps.Humanlike
+                && pawn.Faction != null
+                && pawn.Faction.IsPlayer;
         }
 
         // Architecture 7: rank by highest tier. Since 2026-08-30 that drives the

@@ -8,12 +8,15 @@ using Verse;
 
 namespace HighlightCorpsesWithTech.Core
 {
-    // The mod's three settings (architecture 4 and 10.5): which tech tiers count as
-    // worth marking, whether the on-map outline draws, and verbose logging.
+    // The mod's four settings (architecture 4, 10.5 and 10.9): which tech tiers count
+    // as worth marking, whether your own dead are marked at all, whether the on-map
+    // outline draws, and verbose logging.
     //
-    // There is deliberately no "exclude colonist corpses" toggle. Architecture 10.1
-    // settled that: your own dead are treated exactly like anyone else's, with no
-    // special case anywhere in the mod.
+    // The colonist toggle was refused twice before it was ordered - architecture 10.1
+    // closed the question as "include, no special case, no checkbox" - and then asked
+    // for from play on 2026-08-30. It defaults to ON, which is the behaviour every
+    // existing save already has; turning it off is one click and changes nothing
+    // else.
     public class HcwtSettings : ModSettings
     {
         // Vanilla's TechLevel with Animal dropped - nothing implantable carries it -
@@ -38,6 +41,11 @@ namespace HighlightCorpsesWithTech.Core
         };
 
         public List<TechLevel> enabledTiers = DefaultEnabledTiers.ToList();
+
+        // On by default: 10.1 shipped with your own dead treated like anyone else's,
+        // so defaulting this off would silently change what an existing save shows.
+        public bool markColonistCorpses = true;
+
         public bool showOutline = true;
         public bool verboseLogging;
 
@@ -63,6 +71,7 @@ namespace HighlightCorpsesWithTech.Core
         {
             base.ExposeData();
             Scribe_Collections.Look(ref enabledTiers, "enabledTiers", LookMode.Value);
+            Scribe_Values.Look(ref markColonistCorpses, "markColonistCorpses", true);
             Scribe_Values.Look(ref showOutline, "showOutline", true);
             Scribe_Values.Look(ref verboseLogging, "verboseLogging", false);
 
@@ -101,6 +110,10 @@ namespace HighlightCorpsesWithTech.Core
             }
 
             listing.Gap();
+            listing.CheckboxLabeled("Mark your own dead", ref markColonistCorpses,
+                "Colonists and slaves of your own faction. Off means a colonist who dies " +
+                "with a bionic arm is left alone; everyone else's dead are unaffected " +
+                "either way.");
             listing.CheckboxLabeled("Show the on-map outline", ref showOutline,
                 "The pulsing outline over qualifying corpses. The alert has no toggle - " +
                 "a mod that can be silenced entirely is just an uninstall.");
