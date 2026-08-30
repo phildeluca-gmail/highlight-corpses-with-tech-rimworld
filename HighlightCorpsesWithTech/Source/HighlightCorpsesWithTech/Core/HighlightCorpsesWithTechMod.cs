@@ -1,19 +1,40 @@
+using UnityEngine;
 using Verse;
 
 namespace HighlightCorpsesWithTech.Core
 {
-    // Scaffold, created 2026-08-29. Loads and does nothing else - there is
-    // no agreed behaviour for this mod yet, only a name. See
-    // HighlightCorpsesWithTech_Architecture.md in the repo root.
+    // The mod entry point. RimWorld constructs one of these per load, passing the
+    // ModContentPack.
     //
-    // RimWorld constructs one instance of this per load, passing the
-    // ModContentPack. The log line is the only thing here, and it exists so
-    // "did the scaffold actually load" is answerable without guessing.
+    // There are no Harmony patches anywhere in this mod, and no dependency on
+    // Harmony is declared in About.xml. Detection is vanilla API; the alert
+    // registers itself by subclassing RimWorld.Alert; the outline is drawn by a
+    // MapComponent. See architecture section 5, and test T8.3 which guards it.
     public class HighlightCorpsesWithTechMod : Mod
     {
+        public static HcwtSettings Settings;
+
         public HighlightCorpsesWithTechMod(ModContentPack content) : base(content)
         {
-            Log.Message("[HighlightCorpsesWithTech] Loaded (scaffold - no behaviour yet).");
+            Settings = GetSettings<HcwtSettings>();
+        }
+
+        public override string SettingsCategory()
+        {
+            return "Highlight Corpses With Tech";
+        }
+
+        public override void DoSettingsWindowContents(Rect inRect)
+        {
+            Settings.DoWindowContents(inRect);
+        }
+
+        // RimWorld calls this when the settings window closes - which is the moment
+        // the tier set reaches disk, and the moment the scan's answer can change.
+        public override void WriteSettings()
+        {
+            base.WriteSettings();
+            HcwtLog.Message("tiers enabled: " + Settings.EnabledTiersDescription());
         }
     }
 }

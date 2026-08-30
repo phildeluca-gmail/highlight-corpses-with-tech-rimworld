@@ -6,8 +6,18 @@
   <supportedVersions>
     <li>1.5</li>
   </supportedVersions>
-  <description>Scaffold only - this mod has no behaviour yet. Ordered 2026-08-27, scaffolded 2026-08-29. See HighlightCorpsesWithTech_Architecture.md in the repo root for the verbatim ask and the questions still open.</description>
-  <!-- No modDependencies yet. Add the Harmony block here (copy it from
-       DoNotBeLazy/About/About.xml) if and when this mod actually patches
-       something - declaring a dependency it does not use is noise. -->
+  <description>Marks corpses that still carry recoverable bionics and implants, so you can tell at a glance which bodies are worth hauling to a harvesting bench and which are already-stripped shells.
+
+Qualifying corpses get a pulsing light-blue outline tracing the body, and an alert that names each corpse and what is on it. Clicking the alert cycles the camera through them. The outline brightens with the tech tier, so a rich corpse is distinguishable from a marginal one at a glance.
+
+Which tech tiers count is configurable - one checkbox per tier, from peg legs up to archotech. The default is Industrial and up, so simple prosthetics count and peg legs do not.
+
+Detection uses only vanilla API and no Harmony patches. It declares no dependency on any implant-recovery mod, though one is what makes this useful.</description>
+  <!-- No modDependencies, and none is coming. This mod applies no Harmony patches:
+       detection is vanilla API, the alert self-registers by subclassing
+       RimWorld.Alert, and the outline is drawn by a MapComponent. Declaring a
+       dependency it does not use would be noise - see hcwt-architecture.md
+       section 5, and hcwt-test-plan.md T8.3 which guards it.
+
+       Documents live in the umbrella folder prefixed hcwt-, never in this repo. -->
 </ModMetaData>
