@@ -12,12 +12,31 @@ Qualifying corpses get a pulsing light-blue outline tracing the body, and an ale
 
 Which tech tiers count is configurable - one checkbox per tier, from peg legs up to archotech. The default is Industrial and up, so simple prosthetics count and peg legs do not.
 
-Detection uses only vanilla API and no Harmony patches. It declares no dependency on any implant-recovery mod, though one is what makes this useful.</description>
-  <!-- No modDependencies, and none is coming. This mod applies no Harmony patches:
+A qualifying corpse's name is also drawn in the same pulsing blue wherever it appears in a cargo, caravan, transport or trade list, so you can pick the body worth taking out of a long manifest.
+
+Detection uses only vanilla API. It declares no dependency on any implant-recovery mod, though one is what makes this useful.</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
+  <!-- Harmony was added 2026-09-06 and this file used to say the opposite.
+       Until then the mod applied no patches at all and declared no dependency,
+       and hcwt-test-plan.md T8.3 guarded that. It now has exactly ONE patch -
+       UI/TransferableLabelPatch, which colours a qualifying corpse's name in
+       the dialogs it appears in. Everything else still needs no patch:
        detection is vanilla API, the alert self-registers by subclassing
-       RimWorld.Alert, and the outline is drawn by a MapComponent. Declaring a
-       dependency it does not use would be noise - see hcwt-architecture.md
-       section 5, and hcwt-test-plan.md T8.3 which guards it.
+       RimWorld.Alert, and the outline is drawn by a MapComponent.
+
+       Vehicle Framework's load cargo dialog is covered WITHOUT a dependency on
+       it, because VF builds a plain vanilla TransferableOneWayWidget and the
+       patch sits on the vanilla method underneath. See hcwt-architecture.md
+       section 12.
 
        Documents live in the umbrella folder prefixed hcwt-, never in this repo. -->
 </ModMetaData>

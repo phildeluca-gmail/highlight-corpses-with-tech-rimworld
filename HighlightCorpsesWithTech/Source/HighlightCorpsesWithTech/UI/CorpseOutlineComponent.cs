@@ -26,6 +26,12 @@ namespace HighlightCorpsesWithTech.UI
     {
         private const int ScanIntervalTicks = 120;
 
+        // What the last logged scan said. A scan whose numbers match the last one
+        // reported says nothing new, so it says nothing at all - see the guard in
+        // the scan itself. -1 so the first scan of a session always reports.
+        private int lastReportedQualifying = -1;
+        private int lastReportedExamined = -1;
+
         // One pulse per second, ordered 2026-08-30 (was a two-second cycle, 0.5).
         // Pulser.PulseBrightness takes the frequency in cycles per second, so
         // 1/second is literally 1f.
@@ -150,8 +156,21 @@ namespace HighlightCorpsesWithTech.UI
             }
 
             watch.Stop();
-            HcwtLog.Message("scan: " + examined + " corpses, " + qualified.Count +
-                " qualify (" + watch.ElapsedMilliseconds + "ms)");
+
+            // ONLY when the answer changed. This line used to fire on every scan
+            // and the 2026-09-06 log carried 792 copies of it - 40% of everything
+            // RimWorld wrote that session, from a mod nobody was debugging.
+            // RimWorld stops logging entirely at 1000 messages, for the whole
+            // game and not just the mod that spent them, so a per-tick line is a
+            // defect however cheap the file it lands in. Fourth breach of the
+            // standing rule; cut on the order of 2026-09-06.
+            if (qualified.Count != lastReportedQualifying || examined != lastReportedExamined)
+            {
+                lastReportedQualifying = qualified.Count;
+                lastReportedExamined = examined;
+                HcwtLog.Message("scan: " + examined + " corpses, " + qualified.Count +
+                    " qualify (" + watch.ElapsedMilliseconds + "ms)");
+            }
         }
 
         public override void MapComponentUpdate()
@@ -258,6 +277,26 @@ namespace HighlightCorpsesWithTech.UI
             float alpha = Mathf.Lerp(PulseAlphaFloor, PulseAlphaCeiling, pulse);
 
             return new Color(OutlineColor.r, OutlineColor.g, OutlineColor.b, alpha);
+        }
+
+        // The same colour and the same pulse, for a NAME in a dialog rather than a
+        // silhouette on the map - UI/TransferableLabelPatch. Sharing this rather
+        // than copying the constants is the whole point: the two have to read as
+        // one feature, and a second copy of 0.25/0.6/1.0 would drift.
+        //
+        // The pulse is carried in BRIGHTNESS here, not alpha. Text drawn at 0.65
+        // alpha over a row highlight goes muddy rather than dim, and the label
+        // still has to be readable at the bottom of the pulse.
+        public static Color PulsedLabelColor()
+        {
+            float pulse = Mathf.Clamp01(Pulser.PulseBrightness(PulseFrequency, PulseAmplitude));
+            float scale = Mathf.Lerp(PulseAlphaFloor, PulseAlphaCeiling, pulse);
+
+            return new Color(
+                Mathf.Clamp01(OutlineColor.r * scale),
+                Mathf.Clamp01(OutlineColor.g * scale),
+                Mathf.Clamp01(OutlineColor.b * scale),
+                1f);
         }
     }
 }
