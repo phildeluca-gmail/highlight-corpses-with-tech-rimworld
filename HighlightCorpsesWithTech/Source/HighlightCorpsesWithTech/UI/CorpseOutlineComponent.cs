@@ -63,6 +63,10 @@ namespace HighlightCorpsesWithTech.UI
         private readonly List<TechFinding> scratchFindings = new List<TechFinding>();
         private readonly HashSet<Corpse> previouslyQualifying = new HashSet<Corpse>();
 
+        // Corpses already reported as having no silhouette. Keeps the halo
+        // notice to one line per corpse rather than one per frame.
+        private readonly HashSet<Corpse> reportedNoSilhouette = new HashSet<Corpse>();
+
         private Material haloMaterial;
 
         public CorpseOutlineComponent(Map map) : base(map)
@@ -137,7 +141,8 @@ namespace HighlightCorpsesWithTech.UI
                         for (int f = 0; f < entry.findings.Count; f++)
                         {
                             TechFinding finding = entry.findings[f];
-                            HcwtLog.Message("qualify " + corpse.LabelShort + ": " +
+                            HcwtLog.Message("qualify " + corpse.LabelShort + " at " +
+                                DescribePlace(corpse) + ": " +
                                 finding.hediff.defName + " -> " + finding.yields.defName +
                                 " (" + finding.tier + ")");
                         }
@@ -145,7 +150,8 @@ namespace HighlightCorpsesWithTech.UI
                 }
                 else if (rejectReason != null && !previouslyQualifying.Contains(corpse))
                 {
-                    HcwtLog.Message("reject " + corpse.LabelShort + " - " + rejectReason);
+                    HcwtLog.Message("reject " + corpse.LabelShort + " at " +
+                        DescribePlace(corpse) + " - " + rejectReason);
                 }
             }
 
@@ -168,8 +174,8 @@ namespace HighlightCorpsesWithTech.UI
             {
                 lastReportedQualifying = qualified.Count;
                 lastReportedExamined = examined;
-                HcwtLog.Message("scan: " + examined + " corpses, " + qualified.Count +
-                    " qualify (" + watch.ElapsedMilliseconds + "ms)");
+                HcwtLog.Message("scan " + MapName() + ": " + examined + " corpses, " +
+                    qualified.Count + " qualify (" + watch.ElapsedMilliseconds + "ms)");
             }
         }
 
@@ -177,6 +183,26 @@ namespace HighlightCorpsesWithTech.UI
         {
             HcwtSettings settings = HighlightCorpsesWithTechMod.Settings;
             if (settings == null || !settings.showOutline || qualified.Count == 0)
+            {
+                return;
+            }
+
+            // ONLY the map being looked at. Read off Verse.Game.UpdatePlay in
+            // lib\Assembly-CSharp.dll on 2026-09-07: it loops every map and
+            // calls Map.MapUpdate on each, and MapUpdate ends by calling
+            // MapComponentUtility.MapComponentUpdate unconditionally. So this
+            // method runs once per loaded map per frame, while
+            // Find.CameraDriver.CurrentViewRect and Graphics.DrawMesh both
+            // belong to whichever map is on screen.
+            //
+            // Without this guard, a qualifying corpse on the OTHER colony was
+            // culled against THIS colony's camera and then drawn at its own
+            // coordinates on the map you were looking at - a blue outline
+            // hanging over empty forest with no corpse, no grave and nothing
+            // to click. Reported three times on 2026-09-07 before the cause
+            // was found; the give-away was that the phantom moved when the
+            // other map's corpses did.
+            if (map != Find.CurrentMap)
             {
                 return;
             }
@@ -210,6 +236,15 @@ namespace HighlightCorpsesWithTech.UI
             Mesh mesh;
             Material sourceMaterial;
             bool haveSilhouette = SilhouetteAccess.TryGetSilhouette(corpse, out mesh, out sourceMaterial);
+
+            // Once per corpse, not once per frame - the standing rule. A
+            // square instead of a body shape means this fired.
+            if (!haveSilhouette && !reportedNoSilhouette.Contains(corpse))
+            {
+                reportedNoSilhouette.Add(corpse);
+                HcwtLog.Message("no silhouette for " + corpse.LabelShort + " at " +
+                    DescribePlace(corpse) + " - drawing the halo instead");
+            }
 
             Material material;
             float scale;
@@ -251,6 +286,35 @@ namespace HighlightCorpsesWithTech.UI
                 new Vector3(scale, 1f, scale));
 
             Graphics.DrawMesh(mesh, matrix, material, 0, null, 0, PropertyBlock);
+        }
+
+        // "(78, 0, 120) on Instacolony", or the container when it is not on
+        // the ground. Position alone was not enough on 2026-09-07: a phantom
+        // outline could not be told from a real corpse without knowing which
+        // map the corpse belonged to.
+        private string DescribePlace(Corpse corpse)
+        {
+            if (corpse == null)
+            {
+                return "nowhere";
+            }
+
+            if (!corpse.Spawned)
+            {
+                return "not spawned (in a grave, container or inventory) on " + MapName();
+            }
+
+            return corpse.Position + " on " + MapName();
+        }
+
+        private string MapName()
+        {
+            if (map == null)
+            {
+                return "no map";
+            }
+
+            return map.Parent == null ? "map " + map.Index : map.Parent.LabelCap.ToString();
         }
 
         private Material HaloMaterial()
