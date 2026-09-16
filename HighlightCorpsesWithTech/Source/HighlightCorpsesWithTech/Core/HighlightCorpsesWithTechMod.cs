@@ -39,7 +39,7 @@ namespace HighlightCorpsesWithTech.Core
 
         public override string SettingsCategory()
         {
-            return "Highlight Corpses With Tech";
+            return "Ketjak's Highlight Corpses With Tech";
         }
 
         public override void DoSettingsWindowContents(Rect inRect)
