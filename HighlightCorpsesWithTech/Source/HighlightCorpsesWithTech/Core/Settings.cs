@@ -47,7 +47,7 @@ namespace HighlightCorpsesWithTech.Core
         public bool markColonistCorpses = true;
 
         public bool showOutline = true;
-        public bool verboseLogging;
+        public bool verboseLogging = true;
 
         public bool TierEnabled(TechLevel tier)
         {
@@ -73,7 +73,7 @@ namespace HighlightCorpsesWithTech.Core
             Scribe_Collections.Look(ref enabledTiers, "enabledTiers", LookMode.Value);
             Scribe_Values.Look(ref markColonistCorpses, "markColonistCorpses", true);
             Scribe_Values.Look(ref showOutline, "showOutline", true);
-            Scribe_Values.Look(ref verboseLogging, "verboseLogging", false);
+            Scribe_Values.Look(ref verboseLogging, "verboseLogging", true);
 
             // A settings file written before this list existed, or hand-edited to
             // nothing, would otherwise leave a null here and throw on the first scan.
