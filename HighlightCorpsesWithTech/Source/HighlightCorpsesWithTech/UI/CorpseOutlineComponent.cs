@@ -61,6 +61,7 @@ namespace HighlightCorpsesWithTech.UI
         private readonly List<QualifiedCorpse> qualified = new List<QualifiedCorpse>();
         private readonly List<Thing> scratchThings = new List<Thing>();
         private readonly List<TechFinding> scratchFindings = new List<TechFinding>();
+        private readonly List<int> scratchExaminedIds = new List<int>();
         private readonly HashSet<Corpse> previouslyQualifying = new HashSet<Corpse>();
 
         // Corpses already reported as having no silhouette. Keeps the halo
@@ -99,6 +100,7 @@ namespace HighlightCorpsesWithTech.UI
             Stopwatch watch = Stopwatch.StartNew();
             qualified.Clear();
             scratchThings.Clear();
+            scratchExaminedIds.Clear();
 
             // Both spawned corpses and those inside graves and containers, in one
             // call - alsoGetSpawnedThings:true means no second source and no risk of
@@ -122,6 +124,7 @@ namespace HighlightCorpsesWithTech.UI
                 }
 
                 examined++;
+                scratchExaminedIds.Add(corpse.thingIDNumber);
 
                 string rejectReason;
                 bool qualifies = TechCorpseScanner.TryQualify(
@@ -159,6 +162,17 @@ namespace HighlightCorpsesWithTech.UI
             for (int i = 0; i < qualified.Count; i++)
             {
                 previouslyQualifying.Add(qualified[i].corpse);
+            }
+
+            // Feeds the section 15 toggle's prune round. This is the scan that
+            // already runs every 120 ticks; it costs nothing extra beyond
+            // recording IDs already in hand.
+            CorpseToggleComponent toggle = Current.Game == null
+                ? null
+                : Current.Game.GetComponent<CorpseToggleComponent>();
+            if (toggle != null)
+            {
+                toggle.NoteExamined(scratchExaminedIds);
             }
 
             watch.Stop();

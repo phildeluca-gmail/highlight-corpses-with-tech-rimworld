@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using HighlightCorpsesWithTech.UI;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -49,6 +50,10 @@ namespace HighlightCorpsesWithTech.Core
         public bool showOutline = true;
         public bool verboseLogging = true;
 
+        // UI state only, never saved: the settings window's corpse-list scroll
+        // position (architecture section 15).
+        private Vector2 corpseListScroll = Vector2.zero;
+
         public bool TierEnabled(TechLevel tier)
         {
             return enabledTiers != null && enabledTiers.Contains(tier);
@@ -85,8 +90,20 @@ namespace HighlightCorpsesWithTech.Core
 
         public void DoWindowContents(Rect inRect)
         {
+            // Top part: the existing tier/colonist/outline/verbose checkboxes,
+            // in a fixed-height Listing_Standard as before. Bottom part: the
+            // section 15 corpse list, added 2026-09-26 - a scrollable per-corpse
+            // toggle, in the remaining space.
+            const float TopHeight = 300f;
+            const float Gap = 10f;
+
+            Rect topRect = new Rect(inRect.x, inRect.y, inRect.width, TopHeight);
+            Rect listRect = new Rect(
+                inRect.x, topRect.yMax + Gap, inRect.width,
+                Mathf.Max(0f, inRect.height - TopHeight - Gap));
+
             Listing_Standard listing = new Listing_Standard();
-            listing.Begin(inRect);
+            listing.Begin(topRect);
 
             listing.Label("Mark corpses carrying tech of these tiers:");
             foreach (TechLevel tier in OfferedTiers)
@@ -121,6 +138,132 @@ namespace HighlightCorpsesWithTech.Core
                 "Writes what the scan found to the log. Off unless you are chasing something.");
 
             listing.End();
+
+            DrawCorpseList(listRect);
+        }
+
+        // Architecture section 15 (2026-09-26 ask): every corpse the scanner
+        // currently qualifies, buried ones included, with a per-corpse checkbox.
+        // Off excludes that corpse from Alert_CorpsesWithTech only - the outline
+        // and the dialog-name colouring are untouched. On by default for every
+        // corpse, because the OFF set starts empty.
+        //
+        // Reads CorpseOutlineComponent.Qualified, the same cache the alert reads
+        // - no re-scan of hediffs here. Needs a game loaded: without one there is
+        // no per-save toggle component and no corpse to list.
+        private void DrawCorpseList(Rect rect)
+        {
+            if (rect.height <= 0f)
+            {
+                return;
+            }
+
+            Widgets.DrawLineHorizontal(rect.x, rect.y, rect.width);
+            Rect body = new Rect(rect.x, rect.y + 6f, rect.width, rect.height - 6f);
+
+            if (Current.Game == null)
+            {
+                Widgets.Label(body, "Load a game to see corpses with tech and toggle them for the alert.");
+                return;
+            }
+
+            CorpseToggleComponent toggle = Current.Game.GetComponent<CorpseToggleComponent>();
+            List<QualifiedCorpse> rows = CollectRows();
+
+            Rect header = new Rect(body.x, body.y, body.width, Text.LineHeight);
+            Widgets.Label(header, "Corpses with tech (" + rows.Count +
+                "). Off excludes a corpse from the alert only:");
+
+            Rect viewOutRect = new Rect(
+                body.x, header.yMax + 4f, body.width, body.height - Text.LineHeight - 4f);
+
+            if (viewOutRect.height <= 0f)
+            {
+                return;
+            }
+
+            if (rows.Count == 0)
+            {
+                Widgets.Label(viewOutRect, "None found.");
+                return;
+            }
+
+            float rowHeight = Text.LineHeight + 4f;
+            Rect viewRect = new Rect(0f, 0f, viewOutRect.width - 16f, rowHeight * rows.Count);
+
+            Widgets.BeginScrollView(viewOutRect, ref corpseListScroll, viewRect);
+
+            float y = 0f;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                Corpse corpse = rows[i].corpse;
+                Rect rowRect = new Rect(0f, y, viewRect.width, rowHeight);
+
+                bool on = toggle == null || !toggle.IsOff(corpse);
+                bool was = on;
+                Widgets.CheckboxLabeled(rowRect, RowLabel(corpse), ref on);
+
+                if (on != was && toggle != null)
+                {
+                    toggle.SetOff(corpse, !on);
+                }
+
+                y += rowHeight;
+            }
+
+            Widgets.EndScrollView();
+        }
+
+        // Every map's qualifying cache, buried corpses included (they are already
+        // in Qualified per architecture 10.2), minus anything destroyed since the
+        // last scan.
+        private static List<QualifiedCorpse> CollectRows()
+        {
+            List<QualifiedCorpse> rows = new List<QualifiedCorpse>();
+
+            List<Map> maps = Find.Maps;
+            for (int m = 0; m < maps.Count; m++)
+            {
+                CorpseOutlineComponent component = maps[m].GetComponent<CorpseOutlineComponent>();
+                if (component == null)
+                {
+                    continue;
+                }
+
+                List<QualifiedCorpse> qualified = component.Qualified;
+                for (int i = 0; i < qualified.Count; i++)
+                {
+                    if (qualified[i].corpse == null || qualified[i].corpse.Destroyed)
+                    {
+                        continue;
+                    }
+
+                    rows.Add(qualified[i]);
+                }
+            }
+
+            return rows;
+        }
+
+        private static string RowLabel(Corpse corpse)
+        {
+            return corpse.LabelShortCap + " (" + DescribeLocation(corpse) + ")";
+        }
+
+        // "on Rivendell" for a spawned corpse, "in Grave" for one buried or
+        // crated - mirrors CorpseOutlineComponent.DescribePlace, kept separate
+        // because that one is written for the log rather than a settings row.
+        private static string DescribeLocation(Corpse corpse)
+        {
+            if (corpse.Spawned)
+            {
+                return corpse.Map != null && corpse.Map.Parent != null
+                    ? "on " + corpse.Map.Parent.LabelCap
+                    : "on the map";
+            }
+
+            Thing holder = corpse.ParentHolder as Thing;
+            return holder != null ? "in " + holder.LabelCap : "stored";
         }
 
         private static string LabelFor(TechLevel tier)

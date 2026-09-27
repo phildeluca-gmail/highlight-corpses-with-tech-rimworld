@@ -1,13 +1,16 @@
 @echo off
 :: ============================================================
 :: setup-lib.bat
-:: Copies the four reference DLLs this project builds against into
+:: Copies the six reference DLLs this project builds against into
 :: lib\. They are copyrighted game / third-party files and are NOT
 :: redistributed in this repo - lib\ is gitignored, and nothing this
 :: script copies will ever be committed.
 ::
-:: Three come from your RimWorld install, one from the Harmony
-:: Workshop mod (id 2009463077).
+:: Five come from your RimWorld install, one from the Harmony
+:: Workshop mod (id 2009463077). The two Unity UI modules
+:: (IMGUIModule, TextRenderingModule) were added 2026-09-26 for the
+:: settings window's corpse list - GUIContent and the scroll view are
+:: unreachable without them.
 :: ============================================================
 
 cd /d "%~dp0"
@@ -30,7 +33,7 @@ if not exist "%MANAGED%" (
 
 if not exist "lib" mkdir "lib"
 
-for %%F in (Assembly-CSharp.dll UnityEngine.dll UnityEngine.CoreModule.dll) do (
+for %%F in (Assembly-CSharp.dll UnityEngine.dll UnityEngine.CoreModule.dll UnityEngine.IMGUIModule.dll UnityEngine.TextRenderingModule.dll) do (
     copy /y "%MANAGED%\%%F" "lib\%%F" >nul
     if errorlevel 1 (
         echo ERROR: could not copy %%F
