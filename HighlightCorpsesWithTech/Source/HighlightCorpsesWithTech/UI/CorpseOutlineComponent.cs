@@ -32,6 +32,11 @@ namespace HighlightCorpsesWithTech.UI
         private int lastReportedQualifying = -1;
         private int lastReportedExamined = -1;
 
+        // Game tick of the last logged scan failure; throttles the warning.
+        private int lastScanFailureTick = -1;
+
+        private static readonly System.Predicate<IThingHolder> NotNullHolder = h => h != null;
+
         // One pulse per second, ordered 2026-08-30 (was a two-second cycle, 0.5).
         // Pulser.PulseBrightness takes the frequency in cycles per second, so
         // 1/second is literally 1f.
@@ -98,7 +103,6 @@ namespace HighlightCorpsesWithTech.UI
             }
 
             Stopwatch watch = Stopwatch.StartNew();
-            qualified.Clear();
             scratchThings.Clear();
             scratchExaminedIds.Clear();
 
@@ -106,13 +110,42 @@ namespace HighlightCorpsesWithTech.UI
             // call - alsoGetSpawnedThings:true means no second source and no risk of
             // double-counting (architecture 10.2). Buried corpses count toward the
             // alert; they simply have nothing to draw an outline on.
-            ThingOwnerUtility.GetAllThingsRecursively(
-                map,
-                ThingRequest.ForGroup(ThingRequestGroup.Corpse),
-                scratchThings,
-                true,
-                null,
-                true);
+            //
+            // Defect 2026-11-12: a NullReferenceException inside the holder overload
+            // of GetAllThingsRecursively, once, right after a load. Verified from
+            // the decompile: that overload pops a holder and calls
+            // GetDirectlyHeldThings/GetChildHolders on it with no null check, so a
+            // null holder in Map.GetChildHolders' output throws. Which holder was
+            // null is NOT known. The passCheck below is invoked on every child holder
+            // and on the root, so rejecting null there keeps a null from being
+            // pushed. The catch is the backstop; it logs once per 5000 ticks.
+            try
+            {
+                ThingOwnerUtility.GetAllThingsRecursively(
+                    map,
+                    ThingRequest.ForGroup(ThingRequestGroup.Corpse),
+                    scratchThings,
+                    true,
+                    NotNullHolder,
+                    true);
+            }
+            catch (System.Exception ex)
+            {
+                int now = Find.TickManager.TicksGame;
+                if (lastScanFailureTick < 0 || now - lastScanFailureTick >= 5000)
+                {
+                    lastScanFailureTick = now;
+                    HcwtLog.Warning("scan failed on " + MapName() + ", keeping the previous result until the next scan: " +
+                        ex.GetType().Name + ": " + ex.Message);
+                }
+
+                // Return before anything else is touched: qualified (so the previous
+                // outlines stay), previouslyQualifying (no repeated qualify lines) and
+                // NoteExamined (an empty list would un-switch-off the player's corpses).
+                return;
+            }
+
+            qualified.Clear();
 
             int examined = 0;
             for (int i = 0; i < scratchThings.Count; i++)
